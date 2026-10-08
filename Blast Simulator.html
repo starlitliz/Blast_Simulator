@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HUMAN DETONATION & CONSEQUENCE SIMULATOR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #07080b;
+    --panel-bg: rgba(14, 17, 23, 0.88);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-border-bright: rgba(255, 255, 255, 0.18);
+    
+    --red: #ff3b30;
+    --red-glow: rgba(255, 59, 48, 0.35);
+    --orange: #ff9f0a;
+    --yellow: #ffd60a;
+    --blue: #64d2ff;
+    --purple: #bf5af2;
+    --green: #30d158;
+    
+    --text-primary: #f2f4f8;
+    --text-secondary: #9aa1b0;
+    --text-muted: #5e6677;
+
+    --font-head: 'Outfit', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg-dark);
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #canvas-container { position: absolute; inset: 0; }
+  #canvas-container canvas { display: block; cursor: crosshair; }
+
+  /* Glassmorphism Panel Base */
+  .glass-panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  /* ---------- Top Bar Header ---------- */
+  #topbar {
+    position: absolute; top: 16px; left: 16px; right: 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px;
+    z-index: 10;
+    pointer-events: auto;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 15px var(--red-glow);
+  }
+  .brand-title {
+    font-family: var(--font-head);
+    font-weight: 800; font-size: 16px; letter-spacing: 1px;
+    color: var(--text-primary); text-transform: uppercase;
+  }
+  .brand-title span { color: var(--orange); }
+  .brand-sub {
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary);
+    letter-spacing: 0.5px; margin-top: 1px;
+  }
+
+  .top-stats { display: flex; align-items: center; gap: 24px; }
+  .stat-badge { text-align: right; }
+  .stat-badge .lbl { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-badge .val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--text-primary); }
+
+  .btn-audio {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border-bright);
+    color: var(--text-primary);
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    transition: all 0.2s ease;
+  }
+  .btn-audio:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--orange); }
+  .btn-audio.muted { color: var(--text-muted); border-color: var(--panel-border); }
+
+  /* ---------- Sidebar / Arsenal Control Panel ---------- */
+  #sidebar {
+    position: absolute; top: 86px; left: 16px; bottom: 16px;
+    width: 360px;
+    display: flex; flex-direction: column;
+    z-index: 10;
+    overflow: hidden;
+  }
+
+  .nav-tabs {
+    display: flex; background: rgba(0, 0, 0, 0.4);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 4px; gap: 4px;
+  }
+  .tab-btn {
+    flex: 1; padding: 9px 6px;
+    background: transparent; border: none; border-radius: 6px;
+    color: var(--text-secondary); font-family: var(--font-head);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s ease; text-align: center;
+  }
+  .tab-btn:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.04); }
+  .tab-btn.active { color: #fff; background: rgba(255, 255, 255, 0.1); font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+  .tab-content {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: none; flex-direction: column; gap: 16px;
+  }
+  .tab-content.active { display: flex; }
+  .tab-content::-webkit-scrollbar { width: 4px; }
+  .tab-content::-webkit-scrollbar-thumb { background: var(--panel-border-bright); border-radius: 4px; }
+
+  .section-title {
+    font-family: var(--font-head); font-size: 12px; font-weight: 700;
+    color: var(--orange); text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-title small { font-family: var(--font-mono); color: var(--text-muted); font-size: 10px; text-transform: none; }
+
+  /* Arsenal Preset Cards */
+  .weapon-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 12px; cursor: pointer;
+    transition: all 0.18s ease; position: relative;
+  }
+  .weapon-card:hover { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.2); }
+  .weapon-card.selected {
+    background: rgba(255, 159, 10, 0.08);
+    border-color: var(--orange);
+    box-shadow: 0 0 15px rgba(255, 159, 10, 0.15);
+  }
+  .weapon-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .weapon-name { font-family: var(--font-head); font-weight: 700; font-size: 13.5px; color: var(--text-primary); }
+  .weapon-yield { font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--yellow); }
+  .weapon-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; }
+  .weapon-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+
+  /* Custom Yield Slider */
+  .slider-group { background: rgba(0, 0, 0, 0.3); border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px; }
+  .slider-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .slider-lbl { font-family: var(--font-head); font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .slider-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--orange); }
+  input[type=range] {
+    width: 100%; -webkit-appearance: none; background: rgba(255, 255, 255, 0.1);
+    height: 6px; border-radius: 3px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--orange); cursor: pointer; box-shadow: 0 0 10px var(--orange);
+  }
+
+  /* City Presets Grid */
+  .city-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .city-btn {
+    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 8px 10px; text-align: left; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .city-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--panel-border-bright); }
+  .city-name { font-family: var(--font-head); font-size: 11px; font-weight: 700; color: var(--text-primary); }
+  .city-pop { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-secondary); }
+
+  /* Sidebar Footer / Launch Control */
+  .sidebar-foot {
+    padding: 14px; background: rgba(0, 0, 0, 0.5);
+    border-top: 1px solid var(--panel-border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .btn-detonate {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #ff3b30, #d70015);
+    border: none; border-radius: 8px; color: #fff;
+    font-family: var(--font-head); font-weight: 800; font-size: 13px;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
+    transition: all 0.2s ease;
+  }
+  .btn-detonate:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(255, 59, 48, 0.6); }
+  .btn-detonate:active:not(:disabled) { transform: translateY(1px); }
+  .btn-detonate:disabled { background: var(--panel-border-bright); color: var(--text-muted); cursor: not-allowed; box-shadow: none; }
+  
+  .btn-reset {
+    width: 100%; padding: 8px; background: transparent;
+    border: 1px solid var(--panel-border-bright); border-radius: 6px;
+    color: var(--text-secondary); font-family: var(--font-mono); font-size: 10.5px;
+    font-weight: 600; cursor: pointer; transition: all 0.15s ease;
+  }
+  .btn-reset:hover { color: var(--text-primary); border-color: var(--orange); background: rgba(255,159,10,0.08); }
+
+  /* ---------- Bottom Human Readout Drawer ---------- */
+  #human-readout {
+    position: absolute; bottom: 16px; left: 392px; right: 16px;
+    z-index: 10; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    opacity: 0; transform: translateY(20px); pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #human-readout.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+  .readout-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+  }
+  .readout-card {
+    background: rgba(0, 0, 0, 0.3); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;
+  }
+  .readout-lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    color: var(--text-muted); letter-spacing: 0.8px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .readout-lbl .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .readout-val { font-family: var(--font-head); font-size: 18px; font-weight: 800; color: var(--text-primary); }
+  .readout-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Human Impact Consequence Banner */
+  .consequence-banner {
+    background: rgba(255, 59, 48, 0.1); border: 1px solid rgba(255, 59, 48, 0.25);
+    border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 14px;
+  }
+  .consequence-icon { font-size: 20px; }
+  .consequence-text { font-size: 11.5px; color: var(--text-primary); line-height: 1.45; }
+  .consequence-text strong { color: var(--orange); font-weight: 600; }
+
+  /* ---------- Floating Legend ---------- */
+  #legend-box {
+    position: absolute; top: 86px; right: 16px; width: 250px;
+    z-index: 10; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .legend-item { display: flex; align-items: flex-start; gap: 10px; font-size: 11px; color: var(--text-secondary); }
+  .legend-color { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+  .legend-info strong { color: var(--text-primary); font-family: var(--font-head); display: block; }
+  .legend-info span { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted); }
+
+  /* Human Experience Inspector / Probe Overlay */
+  .probe-card {
+    background: rgba(0, 0, 0, 0.4); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .probe-row { display: flex; justify-content: space-between; font-size: 11px; }
+  .probe-key { color: var(--text-secondary); }
+  .probe-val { font-family: var(--font-mono); font-weight: 700; color: var(--text-primary); }
+
+  /* Flash overlay */
+  #flash-overlay {
+    position: absolute; inset: 0; background: #fff;
+    opacity: 0; pointer-events: none; z-index: 100;
+  }
+
+  /* Responsive layout adjustments */
+  @media (max-width: 900px) {
+    #sidebar { width: 280px; }
+    #human-readout { left: 16px; }
+    .readout-grid { grid-template-columns: repeat(2, 1fr); }
+    #legend-box { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div id="flash-overlay"></div>
+
+<!-- Top Bar -->
+<div id="topbar" class="glass-panel">
+  <div class="brand">
+    <div class="brand-icon">⚡</div>
+    <div>
+      <div class="brand-title">HUMAN DETONATION <span>EFFECTS</span></div>
+      <div class="brand-sub">PHYSICS CONSEQUENCE & HUMANITARIAN RISK MODEL</div>
+    </div>
+  </div>
+  <div class="top-stats">
+    <div class="stat-badge">
+      <div class="lbl">TARGET SYSTEM</div>
+      <div class="val" id="status-text" style="color:var(--green)">GLOBAL READY</div>
+    </div>
+    <div class="stat-badge">
+      <div class="lbl">STRIKE SCARS</div>
+      <div class="val" id="scar-count">0 DETONATIONS</div>
+    </div>
+    <button id="audio-toggle" class="btn-audio">
+      <span id="audio-icon">🔊</span> <span id="audio-lbl">AUDIO ON</span>
+    </button>
+  </div>
+</div>
+
+<!-- Sidebar Navigation & Arsenal -->
+<div id="sidebar" class="glass-panel">
+  <div class="nav-tabs">
+    <button class="tab-btn active" data-tab="tab-arsenal">WARHEADS</button>
+    <button class="tab-btn" data-tab="tab-human">HUMAN RISK</button>
+    <button class="tab-btn" data-tab="tab-probe">DISTANCE PROBE</button>
+    <button class="tab-btn" data-tab="tab-survival">GUIDELINES</button>
+  </div>
+
+  <!-- TAB 1: WARHEADS & TARGET -->
+  <div id="tab-arsenal" class="tab-content active">
+    <div class="section-title">WARHEAD ARSENAL <small>Select or customize yield</small></div>
+    <div id="weapon-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+    <div class="slider-group">
+      <div class="slider-head">
+        <span class="slider-lbl">CUSTOM YIELD CALIBRATION</span>
+        <span class="slider-val" id="custom-yield-val">300 kt</span>
+      </div>
+      <input type="range" id="yield-slider" min="0.01" max="50000" step="1" value="300">
+    </div>
+
+    <div class="section-title">POPULATION TARGET PRESETS <small>Click map or select below</small></div>
+    <div class="city-grid" id="city-container"></div>
+  </div>
+
+  <!-- TAB 2: HUMAN CASUALTIES & IMPACT -->
+  <div id="tab-human" class="tab-content">
+    <div class="section-title">HUMAN TOLL MODEL <small>Defense & Humanitarian formulas</small></div>
+    
+    <div class="probe-card" style="border-left: 3px solid var(--red);">
+      <div class="probe-row">
+        <span class="probe-key">ESTIMATED FATALITIES</span>
+        <span class="probe-val" id="est-fatalities" style="color:var(--red)">—</span>
+      </div>
+      <div class="probe-row">
+        <span class="probe-key">SEVERE INJURIES / BURNS</span>
+        <span class="probe-val" id="est-injuries" style="color:var(--orange)">—</span>
+      </div>
+      <div class="probe-row">
+        <span class="probe-key">TOTAL POPULATION AT RISK</span>
+        <span class="probe-val" id="est-at-risk" style="color:var(--yellow)">—</span>
+      </div>
+      <div class="probe-row">
+        <span class="probe-key">HOSPITAL BED DEFICIT</span>
+        <span class="probe-val" id="est-hospital">—</span>
+      </div>
+    </div>
+
+    <div class="section-title">ZONE CONSEQUENCES FOR HUMAN LIFE</div>
+    
+    <div class="probe-card">
+      <div class="readout-lbl"><span class="dot" style="background:#fff2c2;"></span> FIREBALL (0-100% VAPORIZATION)</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
+        Temperatures reach tens of millions of degrees. Human bodies, buildings, and ground vaporize instantly into superheated plasma.
+      </p>
+    </div>
+
+    <div class="probe-card">
+      <div class="readout-lbl"><span class="dot" style="background:#ff3b30;"></span> HEAVY BLAST (20 PSI OVERPRESSURE)</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
+        Concrete multi-story buildings collapse. Fatal human lung rupture, internal organ crush, 95%+ lethality rate.
+      </p>
+    </div>
+
+    <div class="probe-card">
+      <div class="readout-lbl"><span class="dot" style="background:#ff9f0a;"></span> MODERATE BLAST (5 PSI OVERPRESSURE)</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
+        Residential wood/brick homes collapse. Shattered glass shards travel at hurricane speeds causing severe lacerations and trauma.
+      </p>
+    </div>
+
+    <div class="probe-card">
+      <div class="readout-lbl"><span class="dot" style="background:#64d2ff;"></span> THERMAL FLASH (3RD DEGREE BURNS)</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
+        Thermal pulse chars skin layers through nerve tissue. Clothes ignite spontaneously; blinding eye damage to anyone facing ground zero.
+      </p>
+    </div>
+  </div>
+
+  <!-- TAB 3: DISTANCE PROBE -->
+  <div id="tab-probe" class="tab-content">
+    <div class="section-title">HUMAN EXPERIENCE PROBE <small>Test distance from hypocenter</small></div>
+    
+    <div class="slider-group">
+      <div class="slider-head">
+        <span class="slider-lbl">DISTANCE FROM GROUND ZERO</span>
+        <span class="slider-val" id="probe-dist-val">5.0 km</span>
+      </div>
+      <input type="range" id="probe-slider" min="0.1" max="100" step="0.1" value="5.0">
+    </div>
+
+    <div class="probe-card" style="border-left: 3px solid var(--blue);">
+      <div class="probe-row">
+        <span class="probe-key">SHOCKWAVE ARRIVAL TIME</span>
+        <span class="probe-val" id="probe-arrival">14.6 sec</span>
+      </div>
+      <div class="probe-row">
+        <span class="probe-key">OVERPRESSURE AT DISTANCE</span>
+        <span class="probe-val" id="probe-psi">3.8 PSI</span>
+      </div>
+      <div class="probe-row">
+        <span class="probe-key">THERMAL EXPOSURE</span>
+        <span class="probe-val" id="probe-thermal">12.4 cal/cm²</span>
+      </div>
+      <div class="probe-row">
+        <span class="probe-key">ESTIMATED SURVIVAL CHANCE</span>
+        <span class="probe-val" id="probe-survival" style="color:var(--green)">68% (Indoors)</span>
+      </div>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.03); border:1px solid var(--panel-border); border-radius:8px; padding:12px;">
+      <div style="font-family:var(--font-head); font-weight:700; font-size:12px; color:var(--orange); margin-bottom:6px;">HUMAN SENSORY IMPRESSION</div>
+      <p id="probe-description" style="font-size:11px; color:var(--text-secondary); line-height:1.5;">
+        Select a distance using the slider to analyze what a person standing at that location would see, feel, and experience.
+      </p>
+    </div>
+  </div>
+
+  <!-- TAB 4: SURVIVAL GUIDELINES -->
+  <div id="tab-survival" class="tab-content">
+    <div class="section-title">HUMANITARIAN & SURVIVAL PROTOCOL</div>
+    
+    <div class="probe-card">
+      <div style="font-family:var(--font-head); font-weight:700; font-size:12px; color:var(--yellow); margin-bottom:4px;">1. THE INITIAL 15 SECONDS</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.45;">
+        <strong>Duck & Cover:</strong> Never look at the flash (causes permanent retinal blindness). Immediately drop face down, protect exposed skin, and cover head.
+      </p>
+    </div>
+
+    <div class="probe-card">
+      <div style="font-family:var(--font-head); font-weight:700; font-size:12px; color:var(--yellow); margin-bottom:4px;">2. SHELTER IN PLACE (24-HOUR RULE)</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.45;">
+        Go to the center of a dense concrete building or subterranean basement. Fallout radiation drops by 90% after 7 hours and 99% after 48 hours.
+      </p>
+    </div>
+
+    <div class="probe-card">
+      <div style="font-family:var(--font-head); font-weight:700; font-size:12px; color:var(--yellow); margin-bottom:4px;">3. DECONTAMINATION</div>
+      <p style="font-size:11px; color:var(--text-secondary); line-height:1.45;">
+        Remove outer clothing layers (removes ~90% of radioactive dust). Gently wash skin and hair with clean water without scratching.
+      </p>
+    </div>
+
+    <div style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono); text-align:center; margin-top:8px;">
+      Sources: FEMA, International Red Cross & Emergency Management Physics Models.
+    </div>
+  </div>
+
+  <!-- Sidebar Launch Buttons -->
+  <div class="sidebar-foot">
+    <button id="btn-detonate" class="btn-detonate" disabled>SELECT A TARGET</button>
+    <button id="btn-reset" class="btn-reset">↻ RESET SIMULATION</button>
+  </div>
+</div>
+
+<!-- Floating Legend Box -->
+<div id="legend-box" class="glass-panel">
+  <div style="font-family:var(--font-head); font-size:11px; font-weight:700; color:var(--text-secondary); letter-spacing:1px; text-transform:uppercase;">EFFECT BOUNDARIES</div>
+  <div class="legend-item">
+    <div class="legend-color" style="background:#fff2c2;"></div>
+    <div class="legend-info"><strong>Fireball Radius</strong><span>Total thermal vaporization</span></div>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background:#ff3b30;"></div>
+    <div class="legend-info"><strong>Severe Blast (20 PSI)</strong><span>Concrete destruction & fatalities</span></div>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background:#ff9f0a;"></div>
+    <div class="legend-info"><strong>Moderate Blast (5 PSI)</strong><span>Homes collapse & flying glass</span></div>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background:#64d2ff;"></div>
+    <div class="legend-info"><strong>Thermal Radiation</strong><span>3rd-degree full-thickness burns</span></div>
+  </div>
+</div>
+
+<!-- Bottom Human Impact Readout Drawer -->
+<div id="human-readout" class="glass-panel">
+  <div class="readout-grid">
+    <div class="readout-card">
+      <div class="readout-lbl"><span class="dot" style="background:#fff2c2;"></span> FIREBALL RADIUS</div>
+      <div class="readout-val" id="r-fireball">—</div>
+      <div class="readout-sub" id="b-fireball">Vaporization zone</div>
+    </div>
+    <div class="readout-card">
+      <div class="readout-lbl"><span class="dot" style="background:#ff3b30;"></span> SEVERE BLAST (20 PSI)</div>
+      <div class="readout-val" id="r-severe">—</div>
+      <div class="readout-sub" id="b-severe">Multi-story destruction</div>
+    </div>
+    <div class="readout-card">
+      <div class="readout-lbl"><span class="dot" style="background:#ff9f0a;"></span> MODERATE BLAST (5 PSI)</div>
+      <div class="readout-val" id="r-moderate">—</div>
+      <div class="readout-sub" id="b-moderate">Residential collapse</div>
+    </div>
+    <div class="readout-card">
+      <div class="readout-lbl"><span class="dot" style="background:#64d2ff;"></span> THERMAL BURN RADIUS</div>
+      <div class="readout-val" id="r-thermal">—</div>
+      <div class="readout-sub" id="b-thermal">3rd-degree burn pulse</div>
+    </div>
+    <div class="readout-card">
+      <div class="readout-lbl"><span class="dot" style="background:#ffd60a;"></span> TARGET COORDINATES</div>
+      <div class="readout-val" id="r-coords" style="font-size:14px; font-family:var(--font-mono);">—</div>
+      <div class="readout-sub" id="r-target-name">Designated Ground Zero</div>
+    </div>
+  </div>
+
+  <div class="consequence-banner">
+    <div class="consequence-icon">⚠️</div>
+    <div class="consequence-text" id="consequence-summary">
+      Select a warhead yield and click any location on Earth to simulate human casualties, shockwave boundaries, and structural damage.
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+
+/* =========================================================
+   WARHEAD DATA & WEAPON ARSENAL
+========================================================= */
+const WEAPONS = [
+  { id:'davy', name:"Davy Crockett (M-388)", era:"1961 · US Tactical", yieldKt:0.02, note:"Smallest US tactical nuclear weapon deployment." },
+  { id:'boy', name:"Little Boy", era:"1945 · Hiroshima", yieldKt:15, note:"Uranium gun-type weapon used over Hiroshima." },
+  { id:'fat', name:"Fat Man", era:"1945 · Nagasaki", yieldKt:21, note:"Plutonium implosion weapon used over Nagasaki." },
+  { id:'b61', name:"B61-12 Warhead", era:"Modern · Tactical", yieldKt:50, note:"Variable-yield NATO gravity bomb." },
+  { id:'w87', name:"W87 ICBM Warhead", era:"Modern · Strategic", yieldKt:300, note:"Current US Minuteman III strategic warhead." },
+  { id:'b83', name:"B83 Gravity Bomb", era:"Modern · Heavy", yieldKt:1200, note:"Largest gravity bomb in current active US stockpile." },
+  { id:'bravo', name:"Castle Bravo", era:"1954 · US Test", yieldKt:15000, note:"Largest US thermonuclear test detonation." },
+  { id:'tsar', name:"Tsar Bomba", era:"1961 · Soviet Test", yieldKt:50000, note:"Largest nuclear weapon ever tested (~50 Megatons)." }
+];
+
+/* =========================================================
+   POPULATION & CITY TARGET DATASETS
+========================================================= */
+const CITIES = [
+  { name:"Hiroshima, JP", lat:34.3853, lon:132.4553, pop:350000, density:6500 },
+  { name:"Nagasaki, JP", lat:32.7503, lon:129.8779, pop:260000, density:4800 },
+  { name:"New York, USA", lat:40.7128, lon:-74.0060, pop:8800000, density:10800 },
+  { name:"Tokyo, Japan", lat:35.6762, lon:139.6503, pop:14000000, density:14000 },
+  { name:"London, UK", lat:51.5074, lon:-0.1278, pop:9000000, density:5700 },
+  { name:"Paris, France", lat:48.8566, lon:2.3522, pop:2100000, density:20000 },
+  { name:"Mumbai, India", lat:19.0760, lon:72.8777, pop:21300000, density:21000 },
+  { name:"Kyiv, Ukraine", lat:50.4501, lon:30.5234, pop:2900000, density:3400 }
+];
+
+let selectedWeapon = WEAPONS[4]; // Default W87
+let currentYieldKt = 300;
+let targetLocal = null;
+let targetCityName = "Custom Location";
+let targetDensity = 5000; // default pop density per km2
+
+/* =========================================================
+   SYNTHESIZED WEB AUDIO ENGINE
+========================================================= */
+const Sfx = (function(){
+  let ctx = null, master = null, noiseBuf = null;
+  let enabled = true;
+
+  function ensure(){
+    if(ctx) { if(ctx.state === 'suspended') ctx.resume(); return ctx; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return null;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = enabled ? 0.85 : 0;
+    
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -12;
+    comp.knee.value = 10;
+    comp.ratio.value = 8;
+    comp.attack.value = 0.005;
+    comp.release.value = 0.2;
+    master.connect(comp);
+    comp.connect(ctx.destination);
+
+    // Audio noise buffer
+    const len = Math.floor(ctx.sampleRate * 6);
+    noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    let last = 0;
+    for(let i=0; i<len; i++){
+      const white = Math.random()*2-1;
+      last = (last + 0.04*white) / 1.04;
+      d[i] = last*3.0 + white*0.2;
+    }
+    return ctx;
+  }
+
+  function toggleAudio(){
+    enabled = !enabled;
+    if(master && ctx) master.gain.setTargetAtTime(enabled ? 0.85 : 0, ctx.currentTime, 0.02);
+    return enabled;
+  }
+
+  function clickSound(){
+    if(!ensure() || !enabled) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(400, t+0.04);
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.04);
+    osc.connect(g); g.connect(master);
+    osc.start(t); osc.stop(t+0.05);
+  }
+
+  function detonateSound(yieldKt){
+    if(!ensure() || !enabled) return;
+    const t = ctx.currentTime + 0.1;
+    const scale = Math.min(Math.cbrt(yieldKt)/Math.cbrt(50000), 1);
+
+    // Sub bass thump
+    const sub = ctx.createOscillator();
+    const subG = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(120, t);
+    sub.frequency.exponentialRampToValueAtTime(32 - scale*12, t+0.4);
+    subG.gain.setValueAtTime(0.9, t);
+    subG.gain.exponentialRampToValueAtTime(0.001, t+3.5+scale*3);
+    sub.connect(subG); subG.connect(master);
+    sub.start(t); sub.stop(t+4+scale*3);
+
+    // Crack noise
+    const crackSrc = ctx.createBufferSource();
+    crackSrc.buffer = noiseBuf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = 1800 - scale*800;
+    const crackG = ctx.createGain();
+    crackG.gain.setValueAtTime(0.8, t);
+    crackG.gain.exponentialRampToValueAtTime(0.001, t+2.5+scale*2);
+    crackSrc.connect(filter); filter.connect(crackG); crackG.connect(master);
+    crackSrc.start(t); crackSrc.stop(t+3+scale*2);
+  }
+
+  return { ensure, toggleAudio, clickSound, detonateSound };
+})();
+
+document.getElementById('audio-toggle').addEventListener('click', ()=>{
+  const on = Sfx.toggleAudio();
+  document.getElementById('audio-lbl').textContent = on ? 'AUDIO ON' : 'AUDIO OFF';
+  document.getElementById('audio-icon').textContent = on ? '🔊' : '🔇';
+  document.getElementById('audio-toggle').classList.toggle('muted', !on);
+  if(on) Sfx.clickSound();
+});
+
+/* =========================================================
+   PHYSICS & HUMAN CASUALTY CALCULATIONS
+========================================================= */
+function calcBlastRadii(yieldKt) {
+  const cbrt = Math.cbrt(yieldKt);
+  return {
+    fireball: 0.07 * Math.pow(yieldKt, 0.4),
+    severe:   0.44 * cbrt,  // 20 PSI
+    moderate: 1.01 * cbrt,  // 5 PSI
+    thermal:  1.36 * Math.pow(yieldKt, 0.41) // 3rd degree burns
+  };
+}
+
+function calcCasualties(yieldKt, density) {
+  const r = calcBlastRadii(yieldKt);
+  const areaFb = Math.PI * Math.pow(r.fireball, 2);
+  const area20 = Math.PI * Math.pow(r.severe, 2) - areaFb;
+  const area5  = Math.PI * Math.pow(r.moderate, 2) - Math.PI * Math.pow(r.severe, 2);
+  const areaTh = Math.PI * Math.pow(r.thermal, 2) - Math.PI * Math.pow(r.moderate, 2);
+
+  // Fatality probabilities per zone
+  const fatalFb = areaFb * density * 0.99;
+  const fatal20 = Math.max(0, area20) * density * 0.85;
+  const fatal5  = Math.max(0, area5) * density * 0.30;
+  const fatalTh = Math.max(0, areaTh) * density * 0.08;
+
+  const totalFatalities = Math.round(fatalFb + fatal20 + fatal5 + fatalTh);
+
+  // Injury probabilities
+  const inj20 = Math.max(0, area20) * density * 0.12;
+  const inj5  = Math.max(0, area5) * density * 0.50;
+  const injTh = Math.max(0, areaTh) * density * 0.45;
+  const totalInjuries = Math.round(inj20 + inj5 + injTh);
+
+  const totalAtRisk = Math.round(Math.PI * Math.pow(Math.max(r.thermal, r.moderate)*1.4, 2) * density);
+  const hospitalDeficit = Math.round(totalInjuries * 0.88);
+
+  return { totalFatalities, totalInjuries, totalAtRisk, hospitalDeficit };
+}
+
+function fmtNum(n) {
+  if(n >= 1000000) return (n/1000000).toFixed(2) + " Million";
+  if(n >= 1000) return (n/1000).toFixed(1) + "k";
+  return n.toLocaleString();
+}
+function fmtKm(km) {
+  return km >= 10 ? km.toFixed(1) + " km" : km.toFixed(2) + " km";
+}
+
+/* =========================================================
+   UI NAVIGATION & TAB MANAGERS
+========================================================= */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    Sfx.clickSound();
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Populate Arsenal Cards
+const weaponBox = document.getElementById('weapon-container');
+WEAPONS.forEach((w, idx) => {
+  const card = document.createElement('div');
+  card.className = 'weapon-card' + (w.id === selectedWeapon.id ? ' selected' : '');
+  card.dataset.id = w.id;
+  const yStr = w.yieldKt >= 1000 ? (w.yieldKt/1000) + " Mt" : w.yieldKt + " kt";
+  card.innerHTML = `
+    <div class="weapon-head">
+      <span class="weapon-name">${w.name}</span>
+      <span class="weapon-yield">${yStr}</span>
+    </div>
+    <div class="weapon-meta">${w.era}</div>
+    <div class="weapon-desc">${w.note}</div>
+  `;
+  card.addEventListener('click', () => selectWeapon(w));
+  weaponBox.appendChild(card);
+});
+
+function selectWeapon(w) {
+  Sfx.clickSound();
+  selectedWeapon = w;
+  currentYieldKt = w.yieldKt;
+  document.getElementById('yield-slider').value = w.yieldKt;
+  document.getElementById('custom-yield-val').textContent = w.yieldKt >= 1000 ? (w.yieldKt/1000) + " Mt" : w.yieldKt + " kt";
+  document.querySelectorAll('.weapon-card').forEach(c => c.classList.toggle('selected', c.dataset.id === w.id));
+  updateDetonateBtnState();
+}
+
+// Yield Slider
+const slider = document.getElementById('yield-slider');
+slider.addEventListener('input', (e) => {
+  currentYieldKt = parseFloat(e.target.value);
+  const valStr = currentYieldKt >= 1000 ? (currentYieldKt/1000).toFixed(1) + " Mt" : currentYieldKt + " kt";
+  document.getElementById('custom-yield-val').textContent = valStr;
+  document.querySelectorAll('.weapon-card').forEach(c => c.classList.remove('selected'));
+  updateDetonateBtnState();
+});
+
+// City Presets
+const cityBox = document.getElementById('city-container');
+CITIES.forEach(c => {
+  const btn = document.createElement('div');
+  btn.className = 'city-btn';
+  btn.innerHTML = `
+    <div class="city-name">${c.name}</div>
+    <div class="city-pop">${fmtNum(c.pop)} residents</div>
+  `;
+  btn.addEventListener('click', () => {
+    Sfx.clickSound();
+    setTargetLatLon(c.lat, c.lon, c.name, c.density);
+  });
+  cityBox.appendChild(btn);
+});
+
+// Distance Probe Slider
+const probeSlider = document.getElementById('probe-slider');
+probeSlider.addEventListener('input', (e) => {
+  updateProbeReadout(parseFloat(e.target.value));
+});
+
+function updateProbeReadout(distKm) {
+  document.getElementById('probe-dist-val').textContent = distKm.toFixed(1) + " km";
+  const radii = calcBlastRadii(currentYieldKt);
+  const arrivalSec = (distKm / 0.343).toFixed(1);
+  document.getElementById('probe-arrival').textContent = arrivalSec + " sec";
+
+  const psi = Math.max(0.1, (14 * Math.pow(radii.moderate / Math.max(0.1, distKm), 2.2))).toFixed(1);
+  document.getElementById('probe-psi').textContent = psi + " PSI";
+
+  const thermal = Math.max(0.1, (15 * Math.pow(radii.thermal / Math.max(0.1, distKm), 2))).toFixed(1);
+  document.getElementById('probe-thermal').textContent = thermal + " cal/cm²";
+
+  const survEl = document.getElementById('probe-survival');
+  const descEl = document.getElementById('probe-description');
+
+  if(distKm <= radii.fireball) {
+    survEl.textContent = "0% (Vaporized)"; survEl.style.color = "var(--red)";
+    descEl.textContent = "Complete physical atomization. Extreme radiation and heat instantly decompose all biological matter.";
+  } else if(distKm <= radii.severe) {
+    survEl.textContent = "< 5% (Fatal)"; survEl.style.color = "var(--red)";
+    descEl.textContent = "Shockwave crushes lungs and collapses reinforced concrete. Violent impact trauma and lethal thermal blast.";
+  } else if(distKm <= radii.moderate) {
+    survEl.textContent = "35% (Severe Injury)"; survEl.style.color = "var(--orange)";
+    descEl.textContent = "Residential buildings collapse. High-speed glass projectiles cause massive lacerations and arterial bleeding.";
+  } else if(distKm <= radii.thermal) {
+    survEl.textContent = "75% (Burns & Injuries)"; survEl.style.color = "var(--yellow)";
+    descEl.textContent = "Direct skin exposure causes 3rd-degree burns requiring skin grafts. Clothing ignites; windows shatter.";
+  } else {
+    survEl.textContent = "98% (Safe Indoors)"; survEl.style.color = "var(--green)";
+    descEl.textContent = "Bright light flash followed by a delayed rolling thunder clap. Minor risk of glass shrapnel near windows.";
+  }
+}
+
+/* =========================================================
+   THREE.JS 3D WORLD & GLOBE SCENE
+========================================================= */
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x07080b, 0.015);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+let camDistance = 9.5;
+camera.position.set(0, 1.5, camDistance);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+// Starfield
+(function buildStars(){
+  const geo = new THREE.BufferGeometry();
+  const count = 2500;
+  const pos = new Float32Array(count*3);
+  for(let i=0; i<count; i++){
+    const r = 70 + Math.random()*120;
+    const theta = Math.random()*Math.PI*2;
+    const phi = Math.acos((Math.random()*2)-1);
+    pos[i*3]   = r*Math.sin(phi)*Math.cos(theta);
+    pos[i*3+1] = r*Math.sin(phi)*Math.sin(theta);
+    pos[i*3+2] = r*Math.cos(phi);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x88aacc, size: 0.4, transparent: true, opacity: 0.6 });
+  scene.add(new THREE.Points(geo, mat));
+})();
+
+// Lighting
+scene.add(new THREE.AmbientLight(0x223344, 1.2));
+const sunLight = new THREE.DirectionalLight(0xfff5ea, 1.5);
+sunLight.position.set(5, 4, 6);
+scene.add(sunLight);
+
+// Earth Mesh
+const globeRadius = 3.0;
+const globeGroup = new THREE.Group();
+scene.add(globeGroup);
+
+function createProceduralEarthTex() {
+  const w = 1024, h = 512;
+  const cnv = document.createElement('canvas');
+  cnv.width = w; cnv.height = h;
+  const ctx = cnv.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0, '#0a233c'); grad.addColorStop(0.5, '#0e3456'); grad.addColorStop(1, '#071828');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+
+  ctx.fillStyle = '#1c4d32';
+  const land = [
+    {x:180,y:160,r:95},{x:240,y:230,r:70},{x:440,y:140,r:110},{x:490,y:240,r:70},
+    {x:640,y:150,r:130},{x:780,y:120,r:85},{x:850,y:200,r:75},{x:890,y:330,r:65}
+  ];
+  land.forEach(c=>{
+    for(let i=0; i<20; i++){
+      ctx.beginPath();
+      ctx.ellipse(c.x + (Math.random()-0.5)*c.r, c.y + (Math.random()-0.5)*c.r*0.6, c.r*0.4, c.r*0.3, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+  });
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  for(let i=0;i<=12;i++){ ctx.beginPath(); ctx.moveTo(i*(w/12),0); ctx.lineTo(i*(w/12),h); ctx.stroke(); }
+  for(let i=0;i<=6;i++){ ctx.beginPath(); ctx.moveTo(0,i*(h/6)); ctx.lineTo(w,i*(h/6)); ctx.stroke(); }
+
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
+const globeMat = new THREE.MeshPhongMaterial({ map: createProceduralEarthTex(), shininess: 12, specular: 0x224466 });
+const globeMesh = new THREE.Mesh(new THREE.SphereGeometry(globeRadius, 96, 96), globeMat);
+globeGroup.add(globeMesh);
+
+// Load real Earth textures from NASA/Three.js assets
+const texLoader = new THREE.TextureLoader();
+texLoader.crossOrigin = 'anonymous';
+texLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg', (tex) => {
+  globeMat.map = tex; globeMat.needsUpdate = true;
+});
+texLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg', (tex) => {
+  globeMat.specularMap = tex; globeMat.needsUpdate = true;
+});
+
+// Atmosphere Glow
+const atmoMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.15, side: THREE.BackSide });
+const atmoMesh = new THREE.Mesh(new THREE.SphereGeometry(globeRadius * 1.035, 64, 64), atmoMat);
+scene.add(atmoMesh);
+
+// Target Marker Pin
+const markerGroup = new THREE.Group();
+const ringGeo = new THREE.RingGeometry(0.04, 0.06, 32);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+const markerRing = new THREE.Mesh(ringGeo, ringMat);
+const dotGeo = new THREE.SphereGeometry(0.02, 16, 16);
+const markerDot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffd60a }));
+markerGroup.add(markerRing); markerGroup.add(markerDot);
+markerGroup.visible = false;
+globeGroup.add(markerGroup);
+
+function placeOnGlobe(meshGroup, localVec) {
+  const n = localVec.clone().normalize();
+  meshGroup.position.copy(n.clone().multiplyScalar(globeRadius + 0.005));
+  meshGroup.lookAt(n.clone().multiplyScalar(globeRadius + 5));
+}
+
+/* =========================================================
+   ORBIT INTERACTION CONTROLS
+========================================================= */
+let isDragging = false, lastX = 0, lastY = 0, autoRotate = true;
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  isDragging = true; lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', (e) => {
+  if(!isDragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  globeGroup.rotation.y += dx * 0.004;
+  globeGroup.rotation.x = Math.max(-1.2, Math.min(1.2, globeGroup.rotation.x + dy * 0.004));
+});
+
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camDistance = Math.max(4.5, Math.min(18, camDistance + e.deltaY * 0.003));
+}, { passive: false });
+
+/* Raycasting Target Selection */
+const raycaster = new THREE.Raycaster();
+const mouseVec = new THREE.Vector2();
+let dragMoved = false;
+
+renderer.domElement.addEventListener('mousedown', () => dragMoved = false);
+window.addEventListener('mousemove', () => { if(isDragging) dragMoved = true; });
+
+renderer.domElement.addEventListener('click', (e) => {
+  if(dragMoved || sequenceRunning) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouseVec.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouseVec.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouseVec, camera);
+  const hits = raycaster.intersectObject(globeMesh);
+  if(hits.length) {
+    autoRotate = false;
+    const localHit = globeGroup.worldToLocal(hits[0].point.clone()).normalize().multiplyScalar(globeRadius);
+    setTargetVector(localHit, "Custom Target Pinpoint", 6000);
+  }
+});
+
+function setTargetLatLon(lat, lon, cityName, density) {
+  autoRotate = false;
+  const phi = (90 - lat) * (Math.PI / 180);
+  const theta = (lon + 180) * (Math.PI / 180);
+  const x = -(globeRadius * Math.sin(phi) * Math.cos(theta));
+  const z = (globeRadius * Math.sin(phi) * Math.sin(theta));
+  const y = (globeRadius * Math.cos(phi));
+  setTargetVector(new THREE.Vector3(x, y, z), cityName, density);
+}
+
+function setTargetVector(localVec, cityName, density) {
+  targetLocal = localVec;
+  targetCityName = cityName;
+  targetDensity = density || 5000;
+  markerGroup.visible = true;
+  placeOnGlobe(markerGroup, targetLocal);
+  updateCoordsReadout(targetLocal);
+  updateDetonateBtnState();
+}
+
+function updateCoordsReadout(vec) {
+  const n = vec.clone().normalize();
+  const lat = Math.asin(n.y) * (180 / Math.PI);
+  const lon = Math.atan2(n.z, n.x) * (180 / Math.PI);
+  const ns = lat >= 0 ? 'N' : 'S', ew = lon >= 0 ? 'E' : 'W';
+  document.getElementById('r-coords').textContent = `${Math.abs(lat).toFixed(1)}°${ns} ${Math.abs(lon).toFixed(1)}°${ew}`;
+  document.getElementById('r-target-name').textContent = targetCityName;
+}
+
+function updateDetonateBtnState() {
+  const btn = document.getElementById('btn-detonate');
+  if(!targetLocal) {
+    btn.disabled = true; btn.textContent = "SELECT TARGET ON GLOBE";
+  } else {
+    btn.disabled = false; btn.textContent = "DETONATE " + selectedWeapon.name.toUpperCase();
+  }
+}
+
+/* =========================================================
+   DETONATION SIMULATION & VISUAL EFFECTS
+========================================================= */
+let sequenceRunning = false;
+let sequenceToken = 0;
+const detonationGroup = new THREE.Group();
+globeGroup.add(detonationGroup);
+
+const burnScars = [];
+
+function clearDetonationEffects() {
+  while(detonationGroup.children.length) {
+    const c = detonationGroup.children[0];
+    c.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
+    detonationGroup.remove(c);
+  }
+}
+
+function buildRingMesh(colorHex, opacity) {
+  const geo = new THREE.RingGeometry(1, 1.03, 64);
+  const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
+  return new THREE.Mesh(geo, mat);
+}
+
+function runDetonation() {
+  if(!targetLocal || sequenceRunning) return;
+  sequenceRunning = true;
+  const myToken = ++sequenceToken;
+  
+  Sfx.detonateSound(currentYieldKt);
+
+  document.getElementById('btn-detonate').disabled = true;
+  document.getElementById('status-text').textContent = 'DETONATION ACTIVE';
+  document.getElementById('status-text').style.color = 'var(--red)';
+
+  const radii = calcBlastRadii(currentYieldKt);
+  const cas = calcCasualties(currentYieldKt, targetDensity);
+
+  // Update Human Readouts
+  document.getElementById('r-fireball').textContent = fmtKm(radii.fireball);
+  document.getElementById('r-severe').textContent = fmtKm(radii.severe);
+  document.getElementById('r-moderate').textContent = fmtKm(radii.moderate);
+  document.getElementById('r-thermal').textContent = fmtKm(radii.thermal);
+
+  document.getElementById('est-fatalities').textContent = fmtNum(cas.totalFatalities);
+  document.getElementById('est-injuries').textContent = fmtNum(cas.totalInjuries);
+  document.getElementById('est-at-risk').textContent = fmtNum(cas.totalAtRisk);
+  document.getElementById('est-hospital').textContent = fmtNum(cas.hospitalDeficit) + " trauma beds";
+
+  document.getElementById('consequence-summary').innerHTML = 
+    `Detonation at <strong>${targetCityName}</strong> with <strong>${currentYieldKt} kt</strong> yield result in an estimated <strong>${fmtNum(cas.totalFatalities)} immediate fatalities</strong> and <strong>${fmtNum(cas.totalInjuries)} severe injuries</strong> within the 5 PSI & thermal blast envelope.`;
+
+  document.getElementById('human-readout').classList.add('show');
+
+  clearDetonationEffects();
+
+  const normal = targetLocal.clone().normalize();
+  const up = normal.clone();
+
+  // Fireball
+  const fbMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0xfff5cc, transparent: true, opacity: 0.95 })
+  );
+  fbMesh.position.copy(up.clone().multiplyScalar(globeRadius + 0.02));
+  detonationGroup.add(fbMesh);
+
+  // Rings
+  const ringSevere = buildRingMesh(0xff3b30, 0.9);
+  const ringModerate = buildRingMesh(0xff9f0a, 0.8);
+  const ringThermal = buildRingMesh(0x64d2ff, 0.6);
+
+  [ringSevere, ringModerate, ringThermal].forEach(r => {
+    r.position.copy(up.clone().multiplyScalar(globeRadius + 0.015));
+    r.up.copy(up); r.lookAt(r.position.clone().add(up));
+    r.scale.setScalar(0.001);
+    detonationGroup.add(r);
+  });
+
+  // Screen Flash
+  const flash = document.getElementById('flash-overlay');
+  flash.style.transition = 'none'; flash.style.opacity = '0.9';
+
+  const startTime = performance.now();
+  const yieldScale = Math.cbrt(currentYieldKt);
+  const maxFbScale = 0.04 + Math.min(yieldScale * 0.015, 0.35);
+  const maxSevere = 0.15 + Math.min(yieldScale * 0.04, 2.5);
+  const maxModerate = 0.28 + Math.min(yieldScale * 0.07, 4.0);
+  const maxThermal = 0.36 + Math.min(yieldScale * 0.09, 4.8);
+
+  function animate(now) {
+    if(myToken !== sequenceToken) return;
+    const t = now - startTime;
+
+    if(t < 600) {
+      flash.style.opacity = String(Math.max(0, 0.9 - (t/600)));
+    } else {
+      flash.style.opacity = '0';
+    }
+
+    // Fireball scaling
+    if(t < 1200) {
+      const p = t/1200;
+      fbMesh.scale.setScalar(maxFbScale * Math.sin(p * Math.PI * 0.5));
+    } else if(t < 2500) {
+      const p = (t-1200)/1300;
+      fbMesh.scale.setScalar(maxFbScale * (1 - p*0.8));
+      fbMesh.material.opacity = 0.95 * (1-p);
+    }
+
+    // Expanding shockwave rings
+    const expandRing = (mesh, targetScale, delay, dur) => {
+      const rt = t - delay;
+      if(rt > 0) {
+        const p = Math.min(rt/dur, 1);
+        mesh.scale.setScalar(targetScale * (1 - Math.pow(1-p, 2)));
+      }
+    };
+
+    expandRing(ringSevere, maxSevere, 100, 1400);
+    expandRing(ringModerate, maxModerate, 300, 1800);
+    expandRing(ringThermal, maxThermal, 500, 2200);
+
+    // Camera shake
+    if(t < 1000) {
+      const decay = 1 - (t/1000);
+      camera.position.x += (Math.random()-0.5) * 0.04 * decay;
+      camera.position.y += (Math.random()-0.5) * 0.04 * decay;
+    }
+
+    if(t < 4000) {
+      requestAnimationFrame(animate);
+    } else {
+      sequenceRunning = false;
+      document.getElementById('status-text').textContent = 'GLOBAL READY';
+      document.getElementById('status-text').style.color = 'var(--green)';
+      updateDetonateBtnState();
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+document.getElementById('btn-detonate').addEventListener('click', runDetonation);
+
+// Reset
+function resetSimulation() {
+  sequenceToken++; sequenceRunning = false;
+  clearDetonationEffects();
+  targetLocal = null;
+  markerGroup.visible = false;
+  document.getElementById('human-readout').classList.remove('show');
+  document.getElementById('status-text').textContent = 'GLOBAL READY';
+  document.getElementById('status-text').style.color = 'var(--green)';
+  autoRotate = true;
+  updateDetonateBtnState();
+}
+document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+
+/* =========================================================
+   MAIN RENDER LOOP
+========================================================= */
+function animateLoop() {
+  requestAnimationFrame(animateLoop);
+  if(autoRotate && !isDragging) {
+    globeGroup.rotation.y += 0.001;
+  }
+  const dir = new THREE.Vector3(0, 0.25, 1).normalize().multiplyScalar(camDistance);
+  camera.position.lerp(dir, 0.06);
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+}
+animateLoop();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Initial readout trigger
+updateProbeReadout(5.0);
+
+})();
+</script>
+</body>
+</html>
